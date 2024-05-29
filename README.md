@@ -36,9 +36,9 @@ application = clearskies.Application(
     },
     bindings={
         "twilio": clearskies_twilio.di.twilio(
-            api_key="/path/to/twilio/api_key",
-            api_secret="/path/to/twilio/api_secret",
-            account_sid="/path/to/twilio/account_sid",
+            path_to_api_key="/path/to/twilio/api_key",
+            path_to_api_secret="/path/to/twilio/api_secret",
+            path_to_account_sid="/path/to/twilio/account_sid",
         ),
         "secrets": clearskies_aws.secrets.SecretsManager,
     },
