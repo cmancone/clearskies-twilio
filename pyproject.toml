@@ -2,7 +2,7 @@
 
 [tool.poetry]
 name = "clear-skies-twilio"
-version = "0.9.1"
+version = "0.9.2"
 description = "clearskies bindings for working with Twilio"
 authors = [
     "Conor Mancone <cmancone@gmail.com>",
