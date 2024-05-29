@@ -46,6 +46,8 @@ class SMS:
 
         from_number = self._resolve_number(self.from_number, "from_number", model)
         to_number = self._resolve_number(self.to_number, "to_number", model)
+        if not from_number or not to_number:
+            return
         message = self._resolve_message(self.message, model)
         self.twilio.messages.create(**{
             "to":to_number,
@@ -69,7 +71,7 @@ class SMS:
         if callable(number):
             number = self.di.call_function(number, model=model)
             if not number:
-                raise ValueError(f"Error with clearskies.twilio.actions.sms: I executed the callable attached to '{label}' but it returned a non-value.  The callable must return a phone number as a string.  In case this helps, you can provide a callable to 'when' and have it return false in csaes where you don't want a message sent.")
+                return None
             if not isinstance(number, str):
                 raise ValueError(f"Error with clearskies_twilio.actions.sms: I executed the callable attached to '{label}' but it did not return a string.  The callable must return a phone number as a string.")
         else:
@@ -77,7 +79,7 @@ class SMS:
             if number in model.columns():
                 number = model.get(number)
             if not number:
-                raise ValueError(f"Error with clearskies.twilio.actions.sms: I fetched a column called '{label}' for model {model_label}, hoping for a phone number, but I got back a non-value.  In case this helps, you can provide a callable to 'when' and have it return false in csaes where you don't want a message sent.")
+                return None
             if not isinstance(number, str):
                 raise ValueError(f"Error with clearskies_twilio.actions.sms: I fetched a column called '{label}' for model {model_label}, hoping for a phone number, but it returned a non-string.  The column must return a phone number as a string.")
 
