@@ -1,5 +1,5 @@
 import re
-from typing import Callable, Optional, Union
+from typing import Callable, List, Optional, Union
 
 import clearskies
 
@@ -11,14 +11,18 @@ class SMS:
     def configure(
         self,
         from_number: Optional[Union[str, Callable]] = None,
-        to_number: Optional[Union[str, Callable]] = None,
+        to_number: Optional[Union[str, Callable, List[Union[str, Callable]]]] = None,
         message: Optional[Union[str, Callable]] = None,
         when: Optional[Callable] = None,
     ) -> None:
         """Configure the rules for this SMS notification."""
         self._required_str_or_callable_check(message, "message")
         self._required_str_or_callable_check(from_number, "from_number")
-        self._required_str_or_callable_check(to_number, "to_number")
+        if isinstance(to_number, list):
+            for (index, to_number_value) in enumerate(to_number):
+                self._required_str_or_callable_check(to_number_value, "to_number")
+        else:
+            self._required_str_or_callable_check(to_number, "to_number")
 
         if when and not callable(when):
             raise ValueError("Config 'when' for twilio.actions.sms should be a callable, but isn't.")
@@ -45,15 +49,22 @@ class SMS:
             return
 
         from_number = self._resolve_number(self.from_number, "from_number", model)
-        to_number = self._resolve_number(self.to_number, "to_number", model)
-        if not from_number or not to_number:
+        to_numbers = self._resolve_numbers(self.to_number, "to_number", model)
+        if not from_number or not to_numbers:
             return
         message = self._resolve_message(self.message, model)
-        self.twilio.messages.create(**{
-            "to":to_number,
-            "from_":from_number,
-            "body":message,
-        })
+
+        for to_number in to_numbers:
+            self.twilio.messages.create(**{
+                "to":to_number,
+                "from_":from_number,
+                "body":message,
+            })
+
+    def _resolve_numbers(self, numbers: Union[str, Callable, List[Union[str, Callable]]], label: str, model: clearskies.Model) -> str:
+        if not isinstance(numbers, list):
+            numbers = [numbers]
+        return [self._resolve_number(number, label, model) for number in numbers]
 
     def _resolve_number(self, number: Union[str, Callable], label: str, model: clearskies.Model) -> str:
         """
