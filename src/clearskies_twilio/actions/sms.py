@@ -49,6 +49,9 @@ class SMS:
             return
 
         from_number = self._resolve_number(self.from_number, "from_number", model)
+        if not from_number:
+            raise ValueError("I did not receive a from number")
+        from_number = from_number[0]
         to_numbers = self._resolve_numbers(self.to_number, "to_number", model)
         if not from_number or not to_numbers:
             return
@@ -64,44 +67,58 @@ class SMS:
     def _resolve_numbers(self, numbers: Union[str, Callable, List[Union[str, Callable]]], label: str, model: clearskies.Model) -> str:
         if not isinstance(numbers, list):
             numbers = [numbers]
-        return [self._resolve_number(number, label, model) for number in numbers]
+        resolved_numbers = []
+        for number in numbers:
+            resolved = self._resolve_number(number, label, model)
+            resolved_numbers.extend(resolved)
+        return resolved_numbers
 
-    def _resolve_number(self, number: Union[str, Callable], label: str, model: clearskies.Model) -> str:
+    def _resolve_number(self, number: Union[str, Callable], label: str, model: clearskies.Model) -> List[str]:
         """
-        Convert self.from_number or self.to_number to an actual phone number.
+        Convert self.from_number or self.to_number to a list of actual phone numbers.
 
         We can receive a few things:
 
          1. A phone number
          2. The name of a column from the model
-         3. A callable that returns a phone number
+         3. A callable that returns a phone number(s)
 
         Note that the actual phone numbers may not be in the correct format expected by twilio.
         """
         model_label = model.id_column_name + ": " + model.get(model.id_column_name)
         if callable(number):
-            number = self.di.call_function(number, model=model)
-            if not number:
-                return None
-            if not isinstance(number, str):
-                raise ValueError(f"Error with clearskies_twilio.actions.sms: I executed the callable attached to '{label}' but it did not return a string.  The callable must return a phone number as a string.")
+            numbers = self.di.call_function(number, model=model)
+            if not numbers:
+                return []
+            if isinstance(numbers, str):
+                numbers = [numbers]
+            elif isinstance(numbers, list):
+                if not all(isinstance(item, str) for item in numbers):
+                    raise ValueError(f"Error with clearskies_twilio.actions.sms: I executed the callable attached to '{label}' but the list it returned contained non-strings.  The callable must return a phone number as a string, or a list of phone numbers as strings.")
+            else:
+                raise ValueError(f"Error with clearskies_twilio.actions.sms: I executed the callable attached to '{label}' but it did not return a valid value.  The callable must return a phone number as a string, or a list of phone numbers as strings.")
         else:
+            if not number:
+                return []
             # do we have a column name?
             if number in model.columns():
-                number = model.get(number)
-            if not number:
-                return None
-            if not isinstance(number, str):
-                raise ValueError(f"Error with clearskies_twilio.actions.sms: I fetched a column called '{label}' for model {model_label}, hoping for a phone number, but it returned a non-string.  The column must return a phone number as a string.")
-
+                numbers = model.get(number)
+                if not isinstance(numbers, str):
+                    raise ValueError(f"Error with clearskies_twilio.actions.sms: I fetched a column called '{label}' for model {model_label}, hoping for a phone number, but it returned a non-string.  The column must return a phone number as a string.")
+                numbers = [numbers]
+            else:
+                numbers = [number]
 
         # now make sure we have a twilio friendly number
-        number = re.sub(r"\D", "", number)
-        if not number:
-            raise ValueError(f"Error with clearskies.twilio.actions.sms: while fetching the '{label}' for model {model_label} I ended up with something that just doesn't look like a phone number.")
-        if len(number) == 10:
-            number = f"1{number}"
-        return f"+{number}"
+        final_numbers = []
+        for number in numbers:
+            number = re.sub(r"\D", "", number)
+            if not number:
+                raise ValueError(f"Error with clearskies.twilio.actions.sms: while fetching the '{label}' for model {model_label} I ended up with something that just doesn't look like a phone number.")
+            if len(number) == 10:
+                number = f"1{number}"
+            final_numbers.append(f"+{number}")
+        return final_numbers
 
     def _resolve_message(self, message: Union[Callable, str], model: clearskies.Model) -> str:
         """Build the string for the message given the model."""
